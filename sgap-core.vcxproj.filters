@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="core">
+      <UniqueIdentifier>{A1B2C3D4-0001-0001-0001-000000000001}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="algorithms">
+      <UniqueIdentifier>{A1B2C3D4-0001-0001-0001-000000000002}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="io">
+      <UniqueIdentifier>{A1B2C3D4-0001-0001-0001-000000000003}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="core\sequence.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\sequence_graph.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\alignment_graph.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithms\alignment_walk.cpp">
+      <Filter>algorithms</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithms\alignment_potentials.cpp">
+      <Filter>algorithms</Filter>
+    </ClCompile>
+    <ClCompile Include="io\gfa.cpp">
+      <Filter>io</Filter>
+    </ClCompile>
+    <ClCompile Include="io\fastq.cpp">
+      <Filter>io</Filter>
+    </ClCompile>
+    <ClCompile Include="io\config.cpp">
+      <Filter>io</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="core\types.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="core\sequence.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="core\sequence_graph.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="core\alignment_graph.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithms\edit_distance.h">
+      <Filter>algorithms</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithms\alignment_walk.h">
+      <Filter>algorithms</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithms\alignment_potentials.h">
+      <Filter>algorithms</Filter>
+    </ClInclude>
+    <ClInclude Include="io\gfa.h">
+      <Filter>io</Filter>
+    </ClInclude>
+    <ClInclude Include="io\fastq.h">
+      <Filter>io</Filter>
+    </ClInclude>
+    <ClInclude Include="io\config.h">
+      <Filter>io</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,36 @@
+# Visual Studio
+.vs/
+x64/
+Debug/
+Release/
+*.user
+*.suo
+*.db
+*.opendb
+*.VC.db
+sgap-core/
+sgap-heuristic/
+sgap-solver/
+
+# CMake
+build/
+
+# Build outputs
+*.obj
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.exe
+*.log
+*.tlog
+*.idb
+*.pch
+*.ipch
+
+# IO
+*.gfa
+*.fastq
+output/
+instances/
+docs/

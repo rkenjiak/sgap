@@ -1,0 +1,302 @@
+#include "core/sequence.h"
+#include "core/sequence_graph.h"
+#include "core/alignment_graph.h"
+#include "algorithms/edit_distance.h"
+#include "algorithms/alignment_walk.h"
+#include "algorithms/alignment_potentials.h"
+#include "heuristics/greedy_degree.h"
+#include "heuristics/beam_search.h"
+#include "io/gfa.h"
+#include "io/fastq.h"
+#include "io/config.h"
+#include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <chrono>
+#include <string>
+#include <filesystem>
+
+namespace fs = std::filesystem;
+using namespace seq;
+
+// ============================================================================
+//  CSV header (mesmo formato do benchmark original)
+// ============================================================================
+
+static const char* csv_header =
+  "graph,sequence,vertices,arcs,query_len,"
+  "algorithm,variant,edit_dist,induced_len,is_path,time_ms\n";
+
+// ============================================================================
+//  Solucao de um algoritmo (vertices + metricas)
+// ============================================================================
+
+struct AlgorithmSolution {
+  std::string name;
+  std::vector<VertexId> vertices;
+  Sequence induced;
+  int edit_dist = -1;
+  bool is_path  = false;
+};
+
+// ============================================================================
+//  Escrita do arquivo .sol
+// ============================================================================
+
+static void
+write_sol(const fs::path& sol_path,
+          const std::string& graph_name,
+          const std::string& seq_name,
+          const std::string& config_name,
+          const SequenceGraph& g,
+          const Sequence& query,
+          const std::vector<AlgorithmSolution>& solutions)
+{
+  std::ofstream sol(sol_path);
+
+  sol << "# graph: " << graph_name << "\n"
+      << "# sequence: " << seq_name << "\n"
+      << "# config: " << config_name << "\n"
+      << "# vertices: " << g.vertex_count() << "\n"
+      << "# arcs: " << g.arc_count() << "\n"
+      << "# query_len: " << query.size() << "\n"
+      << "#\n"
+      << "# query\n"
+      << query.str() << "\n\n";
+
+  for (const auto& s : solutions) {
+    if (s.edit_dist < 0) continue;
+
+    sol << "## " << s.name << "\n"
+        << "# edit_dist: " << s.edit_dist << "\n"
+        << "# induced_len: " << s.induced.size() << "\n"
+        << "# is_path: " << (s.is_path ? "true" : "false") << "\n"
+        << "# induced\n"
+        << s.induced.str() << "\n"
+        << "# walk (" << s.vertices.size() << " vertices)\n";
+
+    for (std::size_t i = 0; i < s.vertices.size(); ++i) {
+      if (i > 0) sol << " ";
+      sol << s.vertices[i];
+    }
+    sol << "\n\n";
+  }
+
+  sol.close();
+}
+
+// ============================================================================
+//  Execucao unica: 1 grafo + 1 sequencia + config
+// ============================================================================
+
+static void
+run(const fs::path& gfa_path,
+    const fs::path& fastq_path,
+    const fs::path& cfg_path,
+    const ExperimentConfig& cfg,
+    std::ostream& out,
+    const fs::path& sol_dir)
+{
+  SequenceGraph g = read_gfa(gfa_path.string());
+  Sequence query  = read_fastq(fastq_path.string());
+
+  std::string graph_name  = gfa_path.stem().string();
+  std::string seq_name    = fastq_path.stem().string();
+  std::string config_name = cfg_path.stem().string();
+
+  std::cerr << graph_name << " x " << seq_name << "  ";
+
+  AlgorithmSolution sol_result;
+  std::string algorithm = cfg.algorithm;
+  std::string variant;
+  int    edit_dist = -1;
+  int    induced_len = 0;
+  bool   is_path = false;
+  double time_ms = 0.0;
+
+  if (algorithm == "jain") {
+    variant = cfg.jain_method;
+    AlignmentGraph ag(g, query, cfg.costs);
+
+    ShortestPathMethod method = (cfg.jain_method == "dijkstra")
+        ? ShortestPathMethod::Dijkstra
+        : ShortestPathMethod::BFS01;
+
+    auto t0 = std::chrono::steady_clock::now();
+    auto result = walk_alignment(ag, method);
+    auto t1 = std::chrono::steady_clock::now();
+    time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+    if (result) {
+      auto induced = g.induced_sequence(result->vertices);
+      edit_dist   = result->cost;
+      induced_len = static_cast<int>(induced.size());
+      is_path     = g.is_valid_path(result->vertices);
+
+      sol_result = {"jain_" + variant, result->vertices,
+                    std::move(induced), edit_dist, is_path};
+    }
+
+  } else if (algorithm == "greedy") {
+    variant = cfg.greedy_selection;
+    GreedyDegreeParams params;
+    params.selection = (cfg.greedy_selection == "roulette")
+        ? GreedyDegreeParams::Selection::roulette
+        : GreedyDegreeParams::Selection::greedy;
+    params.seed = cfg.greedy_seed;
+
+    auto t0 = std::chrono::steady_clock::now();
+    auto best = greedy_degree_best(g, query, cfg.greedy_restarts, params);
+    auto t1 = std::chrono::steady_clock::now();
+    time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+    if (best) {
+      auto induced = g.induced_sequence(best->vertices);
+      edit_dist   = best->cost;
+      induced_len = static_cast<int>(induced.size());
+      is_path     = g.is_valid_path(best->vertices);
+
+      sol_result = {"greedy_" + variant, best->vertices,
+                    std::move(induced), edit_dist, is_path};
+    }
+
+  } else if (algorithm == "beam") {
+    variant = cfg.beam_potentials;
+    AlignmentGraph ag(g, query, cfg.costs);
+
+    ShortestPathMethod pot_method = (cfg.beam_potentials == "dijkstra")
+        ? ShortestPathMethod::Dijkstra
+        : ShortestPathMethod::BFS01;
+
+    // Resolver beam_width conforme o modo escolhido
+    int resolved_beam_width = cfg.beam_width;
+    {
+      std::size_t n = g.vertex_count();
+      std::size_t a = g.arc_count();
+      const auto& mode = cfg.beam_width_mode;
+      if (mode == "n") {
+        resolved_beam_width = static_cast<int>(n);      
+      } else if (mode == "density_n") {
+        double density = (n > 0) ? static_cast<double>(a) / n : 1.0;
+        resolved_beam_width = static_cast<int>(density * n);
+      }
+      // mode == "constant" => usa cfg.beam_width como esta
+    }
+    variant += "_" + cfg.beam_width_mode + "_k" + std::to_string(resolved_beam_width);
+    std::cerr << "  beam_width_mode=" << cfg.beam_width_mode
+              << " resolved_k=" << resolved_beam_width << "  ";
+
+    BeamSearchParams bp;
+    bp.beam_width = resolved_beam_width;
+
+    auto t0 = std::chrono::steady_clock::now();
+    AlignmentPotentials pot(ag, pot_method);
+    auto result = beam_search_alignment(g, query, pot, ag, bp);
+    auto t1 = std::chrono::steady_clock::now();
+    time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+    if (result) {
+      auto induced = g.induced_sequence(result->vertices);
+      edit_dist   = result->cost;
+      induced_len = static_cast<int>(induced.size());
+      is_path     = g.is_valid_path(result->vertices);
+
+      sol_result = {"beam_" + variant, result->vertices,
+                    std::move(induced), edit_dist, is_path};
+    }
+
+  } else {
+    std::cerr << "algoritmo desconhecido: " << algorithm << "\n";
+    return;
+  }
+
+  // -- Escrever linha CSV --
+  out << graph_name << ","
+      << seq_name << ","
+      << g.vertex_count() << ","
+      << g.arc_count() << ","
+      << query.size() << ","
+      << algorithm << ","
+      << variant << ","
+      << edit_dist << ","
+      << induced_len << ","
+      << (is_path ? 1 : 0) << ","
+      << std::fixed << std::setprecision(2)
+      << time_ms << "\n"
+      << std::defaultfloat;
+
+  // -- Escrever arquivo .sol --
+  if (!sol_dir.empty() && edit_dist >= 0) {
+    fs::create_directories(sol_dir);
+    fs::path sol_path = sol_dir / (graph_name + "_" + seq_name + "_" + config_name + ".sol");
+    std::vector<AlgorithmSolution> solutions = {std::move(sol_result)};
+    write_sol(sol_path, graph_name, seq_name, config_name, g, query, solutions);
+  }
+
+  std::cerr << algorithm << "(" << variant << ") edit=" << edit_dist << "\n";
+}
+
+// ============================================================================
+//  main
+// ============================================================================
+
+int
+main(int argc, char* argv[])
+{
+  if (argc < 4) {
+    std::cerr << "uso: " << argv[0]
+              << " <grafo.gfa> <sequencia.fastq> <config.ini> [saida.csv]\n";
+    return 1;
+  }
+
+  fs::path gfa_path   = argv[1];
+  fs::path fastq_path = argv[2];
+  fs::path cfg_path   = argv[3];
+
+  if (!fs::exists(gfa_path)) {
+    std::cerr << "arquivo gfa nao encontrado: " << gfa_path << "\n";
+    return 1;
+  }
+  if (!fs::exists(fastq_path)) {
+    std::cerr << "arquivo fastq nao encontrado: " << fastq_path << "\n";
+    return 1;
+  }
+  if (!fs::exists(cfg_path)) {
+    std::cerr << "arquivo de config nao encontrado: " << cfg_path << "\n";
+    return 1;
+  }
+
+  try {
+    ExperimentConfig cfg = read_config(cfg_path.string());
+
+    if (argc > 4) {
+      fs::path csv_path = argv[4];
+
+      // Criar diretorio de saida se necessario
+      if (csv_path.has_parent_path())
+        fs::create_directories(csv_path.parent_path());
+
+      bool file_exists = fs::exists(csv_path);
+
+      std::ofstream csv(csv_path, std::ios::app);
+      if (!file_exists)
+        csv << csv_header;
+
+      // Diretorio de .sol ao lado do CSV
+      fs::path sol_dir = csv_path.parent_path() / "sol";
+
+      run(gfa_path, fastq_path, cfg_path, cfg, csv, sol_dir);
+      csv.close();
+      std::cerr << "resultado escrito em " << csv_path << "\n";
+    } else {
+      // Sem arquivo de saida: escreve no stdout, sem .sol
+      std::cout << csv_header;
+      run(gfa_path, fastq_path, cfg_path, cfg, std::cout, "");
+    }
+  } catch (const std::exception& e) {
+    std::cerr << "erro: " << e.what() << "\n";
+    return 1;
+  }
+
+  return 0;
+}
