@@ -1,4 +1,4 @@
-# SGAP — Sequence Graph Alignment Probleam
+# SGAP — Sequence Graph Alignment Problem
 
 Projeto de TCC sobre alinhamento de uma sequência a um grafo de sequências com restrição de **caminho simples** (sem repetição de vértices). Problema NP-difícil; o projeto implementa tanto a relaxação polinomial (walk) quanto o problema exato (path) e heurísticas.
 
@@ -10,7 +10,7 @@ Projeto de TCC sobre alinhamento de uma sequência a um grafo de sequências com
 - `solvers/` — PLI exata via Gurobi (fluxo + restrição de simplicidade).
 - `io/` — leitura de GFA, FASTQ e arquivo de configuração `key=value`.
 - `apps/` — dois binários: `sgap-heuristic` (heurísticas) e `sgap-solver` (exato).
-- `instances/`, `scripts/` — entrada e utilitários.
+- `instance-examples/`, `scripts/` — entrada e utilitários.
 
 ## Build
 
