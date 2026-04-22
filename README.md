@@ -1,4 +1,4 @@
-# SGAP — Simple-Path Graph Alignment
+# SGAP — Sequence Graph Alignment Probleam
 
 Projeto de TCC sobre alinhamento de uma sequência a um grafo de sequências com restrição de **caminho simples** (sem repetição de vértices). Problema NP-difícil; o projeto implementa tanto a relaxação polinomial (walk) quanto o problema exato (path) e heurísticas.
 

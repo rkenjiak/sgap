@@ -29,8 +29,7 @@ build/
 *.ipch
 
 # IO
-*.gfa
-*.fastq
 output/
+sol/
 instances/
 docs/

@@ -3,6 +3,7 @@
 #include <queue>
 #include <deque>
 #include <limits>
+#include <algorithm>
 
 namespace seq {
 
