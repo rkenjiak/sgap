@@ -46,13 +46,43 @@ run(const fs::path& gfa_path,
   Sequence         query = read_fastq(fastq_path);
   ExperimentConfig cfg   = read_config(cfg_path.string());
 
-  std::string graph_name = gfa_path.stem().string();
-  std::string seq_name   = fastq_path.stem().string();
-  std::string algorithm  = cfg.algorithm;
+  std::string graph_name  = gfa_path.stem().string();
+  std::string seq_name    = fastq_path.stem().string();
+  std::string config_name = cfg_path.stem().string();
+  std::string algorithm   = cfg.algorithm;
 
   std::cerr << graph_name << " x " << seq_name << "  ";
 
   AlignmentGraph ag(g, query, cfg.costs);
+
+  // Saida .sol no formato Gurobi: <dir>/<grafo>_<seq>_<config>.sol.
+  std::string sol_path;
+  if (!cfg.gurobi_sol_dir.empty()) {
+    fs::path p = fs::path(cfg.gurobi_sol_dir) /
+                 (graph_name + "_" + seq_name + "_" + config_name + ".sol");
+    sol_path = p.string();
+  }
+
+  // Saida .lp do modelo do PLI: <dir>/<grafo>_<seq>_<config>.lp.
+  std::string lp_path;
+  if (!cfg.gurobi_lp_dir.empty()) {
+    fs::path p = fs::path(cfg.gurobi_lp_dir) /
+                 (graph_name + "_" + seq_name + "_" + config_name + ".lp");
+    lp_path = p.string();
+  }
+
+  // Warm start: caminho explicito (config). Permite, por exemplo,
+  // apontar para o .sol gerado por uma heuristica especifica.
+  std::string warm_path;
+  if (!cfg.pli_warm_start_path.empty()) {
+    if (fs::exists(cfg.pli_warm_start_path)) {
+      warm_path = cfg.pli_warm_start_path;
+      std::cerr << "[warm-start] " << warm_path << "  ";
+    } else {
+      std::cerr << "[warm-start ignorado: arquivo nao existe "
+                << cfg.pli_warm_start_path << "]  ";
+    }
+  }
 
   // ----- despacho por algoritmo -----
   std::optional<SolverResult> result;
@@ -60,7 +90,7 @@ run(const fs::path& gfa_path,
   auto t0 = std::chrono::steady_clock::now();
 
   if (algorithm == "pli") {
-    result = solve_pli(ag, cfg);
+    result = solve_pli(ag, cfg, sol_path, warm_path, lp_path);
   }
   // else if (algorithm == "lagrangian") {
   //   result = solve_lagrangian(ag, cfg);
