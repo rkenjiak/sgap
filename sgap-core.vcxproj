@@ -127,9 +127,11 @@
     <ClCompile Include="core\alignment_graph.cpp" />
     <ClCompile Include="algorithms\alignment_walk.cpp" />
     <ClCompile Include="algorithms\alignment_potentials.cpp" />
+    <ClCompile Include="algorithms\warm_start.cpp" />
     <ClCompile Include="io\gfa.cpp" />
     <ClCompile Include="io\fastq.cpp" />
     <ClCompile Include="io\config.cpp" />
+    <ClCompile Include="io\gurobi_sol.cpp" />
   </ItemGroup>
 
   <!-- Headers -->
@@ -141,9 +143,11 @@
     <ClInclude Include="algorithms\edit_distance.h" />
     <ClInclude Include="algorithms\alignment_walk.h" />
     <ClInclude Include="algorithms\alignment_potentials.h" />
+    <ClInclude Include="algorithms\warm_start.h" />
     <ClInclude Include="io\gfa.h" />
     <ClInclude Include="io\fastq.h" />
     <ClInclude Include="io\config.h" />
+    <ClInclude Include="io\gurobi_sol.h" />
   </ItemGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

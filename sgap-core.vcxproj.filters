@@ -27,6 +27,9 @@
     <ClCompile Include="algorithms\alignment_potentials.cpp">
       <Filter>algorithms</Filter>
     </ClCompile>
+    <ClCompile Include="algorithms\warm_start.cpp">
+      <Filter>algorithms</Filter>
+    </ClCompile>
     <ClCompile Include="io\gfa.cpp">
       <Filter>io</Filter>
     </ClCompile>
@@ -34,6 +37,9 @@
       <Filter>io</Filter>
     </ClCompile>
     <ClCompile Include="io\config.cpp">
+      <Filter>io</Filter>
+    </ClCompile>
+    <ClCompile Include="io\gurobi_sol.cpp">
       <Filter>io</Filter>
     </ClCompile>
   </ItemGroup>
@@ -59,6 +65,9 @@
     <ClInclude Include="algorithms\alignment_potentials.h">
       <Filter>algorithms</Filter>
     </ClInclude>
+    <ClInclude Include="algorithms\warm_start.h">
+      <Filter>algorithms</Filter>
+    </ClInclude>
     <ClInclude Include="io\gfa.h">
       <Filter>io</Filter>
     </ClInclude>
@@ -66,6 +75,9 @@
       <Filter>io</Filter>
     </ClInclude>
     <ClInclude Include="io\config.h">
+      <Filter>io</Filter>
+    </ClInclude>
+    <ClInclude Include="io\gurobi_sol.h">
       <Filter>io</Filter>
     </ClInclude>
   </ItemGroup>
