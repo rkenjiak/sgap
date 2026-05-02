@@ -28,6 +28,22 @@ struct ExperimentConfig {
   // PLI (Gurobi)
   bool   pli_verbose      = false;  // GRB OutputFlag / LogToConsole
   double pli_time_limit_s = 0.0;    // 0 = sem limite
+
+  // Persistencia em formato .sol do Gurobi (compartilhado por
+  // sgap-solver e sgap-heuristic).
+  // gurobi_sol_dir       : se nao vazio, ambos os binarios gravam
+  //                        <dir>/<grafo>_<seq>_<config>.sol.
+  // pli_warm_start_path  : caminho explicito de um .sol a ser usado
+  //                        como MIP start no PLI. Permite escolher
+  //                        externamente qual heuristica seeda o solve.
+  //                        Ignorado se vazio ou se o arquivo nao
+  //                        existir.
+  std::string gurobi_sol_dir;
+  std::string pli_warm_start_path;
+
+  // gurobi_lp_dir : se nao vazio, sgap-solver grava o modelo do PLI em
+  //                 <dir>/<grafo>_<seq>_<config>.lp antes do optimize().
+  std::string gurobi_lp_dir;
 };
 
 ExperimentConfig read_config(const std::string& path);

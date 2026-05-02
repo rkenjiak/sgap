@@ -61,6 +61,9 @@ ExperimentConfig read_config(const std::string& path) {
     else if (key == "cost_deletion")      cfg.costs.deletion = std::stoi(val);
     else if (key == "pli_verbose")        cfg.pli_verbose = parse_bool(val);
     else if (key == "pli_time_limit_s")   cfg.pli_time_limit_s = std::stod(val);
+    else if (key == "gurobi_sol_dir")     cfg.gurobi_sol_dir = val;
+    else if (key == "pli_warm_start_path") cfg.pli_warm_start_path = val;
+    else if (key == "gurobi_lp_dir")      cfg.gurobi_lp_dir = val;
   }
 
   return cfg;
