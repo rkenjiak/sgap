@@ -1,12 +1,20 @@
 #include "pli.h"
+#include "../io/gurobi_sol.h"
 #include "gurobi_c++.h"
+
 #include <cmath>
+#include <filesystem>
+#include <string>
 #include <vector>
 
 namespace seq {
 
 std::optional<SolverResult>
-solve_pli(const AlignmentGraph& ag, const ExperimentConfig& cfg)
+solve_pli(const AlignmentGraph&   ag,
+          const ExperimentConfig& cfg,
+          const std::string&      sol_save_path,
+          const std::string&      warm_start_path,
+          const std::string&      lp_save_path)
 {
   const std::size_t N           = ag.vertex_count();
   const std::size_t G           = ag.graph_vertex_count(); // n (sem dummy)
@@ -33,8 +41,11 @@ solve_pli(const AlignmentGraph& ag, const ExperimentConfig& cfg)
   GRBLinExpr obj;
 
   for (VertexId u = 0; u < N; ++u) {
-    for (const auto& a : ag.neighbors(u)) {
-      GRBVar x = model.addVar(0.0, 1.0, 0.0, GRB_BINARY);
+    auto neigh = ag.neighbors(u);
+    for (std::size_t j = 0; j < neigh.size(); ++j) {
+      const auto& a = neigh[j];
+
+      GRBVar x = model.addVar(0.0, 1.0, 0.0, GRB_BINARY, arc_var_name(u, j));
       arcs.push_back({u, a.target, a.weight, x});
 
       out_expr[u]       += x;
@@ -70,6 +81,31 @@ solve_pli(const AlignmentGraph& ag, const ExperimentConfig& cfg)
   for (std::size_t v = 0; v < G; ++v)
     model.addConstr(in_v_expr[v] <= 1.0);
 
+  // Warm start: aplica os valores do .sol no atributo Start. Atribuir
+  // GRB_UNDEFINED nas demais variaveis nao eh necessario (Gurobi as
+  // trata como livres) mas reforcamos a consistencia.
+  if (!warm_start_path.empty() && std::filesystem::exists(warm_start_path)) {
+    auto values = read_gurobi_sol(warm_start_path);
+    for (VertexId u = 0, idx = 0; u < N; ++u) {
+      auto neigh = ag.neighbors(u);
+      for (std::size_t j = 0; j < neigh.size(); ++j, ++idx) {
+        auto it = values.find(arc_var_name(u, j));
+        double v = (it != values.end()) ? it->second : GRB_UNDEFINED;
+        arcs[idx].x.set(GRB_DoubleAttr_Start, v);
+      }
+    }
+  }
+
+  // Atualiza o modelo para que a escrita do .lp reflita variaveis,
+  // restricoes e MIP start adicionados acima.
+  if (!lp_save_path.empty()) {
+    model.update();
+    auto parent = std::filesystem::path(lp_save_path).parent_path();
+    if (!parent.empty())
+      std::filesystem::create_directories(parent);
+    model.write(lp_save_path);
+  }
+
   model.optimize();
 
   // Aceita otimo ou solucao viavel encontrada antes do time limit.
@@ -77,6 +113,13 @@ solve_pli(const AlignmentGraph& ag, const ExperimentConfig& cfg)
   const bool has_solution = model.get(GRB_IntAttr_SolCount) > 0;
   if (status != GRB_OPTIMAL && !has_solution)
     return std::nullopt;
+
+  if (!sol_save_path.empty()) {
+    auto parent = std::filesystem::path(sol_save_path).parent_path();
+    if (!parent.empty())
+      std::filesystem::create_directories(parent);
+    model.write(sol_save_path);
+  }
 
   std::vector<std::vector<std::size_t>> sel_out(N);
   for (std::size_t i = 0; i < arcs.size(); ++i)

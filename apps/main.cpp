@@ -4,11 +4,13 @@
 #include "algorithms/edit_distance.h"
 #include "algorithms/alignment_walk.h"
 #include "algorithms/alignment_potentials.h"
+#include "algorithms/warm_start.h"
 #include "heuristics/greedy_degree.h"
 #include "heuristics/beam_search.h"
 #include "io/gfa.h"
 #include "io/fastq.h"
 #include "io/config.h"
+#include "io/gurobi_sol.h"
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -40,11 +42,11 @@ struct AlgorithmSolution {
 };
 
 // ============================================================================
-//  Escrita do arquivo .sol
+//  Escrita do arquivo .out (relatorio humano-legivel da heuristica)
 // ============================================================================
 
 static void
-write_sol(const fs::path& sol_path,
+write_out(const fs::path& out_path,
           const std::string& graph_name,
           const std::string& seq_name,
           const std::string& config_name,
@@ -52,9 +54,9 @@ write_sol(const fs::path& sol_path,
           const Sequence& query,
           const std::vector<AlgorithmSolution>& solutions)
 {
-  std::ofstream sol(sol_path);
+  std::ofstream out(out_path);
 
-  sol << "# graph: " << graph_name << "\n"
+  out << "# graph: " << graph_name << "\n"
       << "# sequence: " << seq_name << "\n"
       << "# config: " << config_name << "\n"
       << "# vertices: " << g.vertex_count() << "\n"
@@ -67,7 +69,7 @@ write_sol(const fs::path& sol_path,
   for (const auto& s : solutions) {
     if (s.edit_dist < 0) continue;
 
-    sol << "## " << s.name << "\n"
+    out << "## " << s.name << "\n"
         << "# edit_dist: " << s.edit_dist << "\n"
         << "# induced_len: " << s.induced.size() << "\n"
         << "# is_path: " << (s.is_path ? "true" : "false") << "\n"
@@ -76,13 +78,13 @@ write_sol(const fs::path& sol_path,
         << "# walk (" << s.vertices.size() << " vertices)\n";
 
     for (std::size_t i = 0; i < s.vertices.size(); ++i) {
-      if (i > 0) sol << " ";
-      sol << s.vertices[i];
+      if (i > 0) out << " ";
+      out << s.vertices[i];
     }
-    sol << "\n\n";
+    out << "\n\n";
   }
 
-  sol.close();
+  out.close();
 }
 
 // ============================================================================
@@ -95,7 +97,7 @@ run(const fs::path& gfa_path,
     const fs::path& cfg_path,
     const ExperimentConfig& cfg,
     std::ostream& out,
-    const fs::path& sol_dir)
+    const fs::path& out_dir)
 {
   SequenceGraph g = read_gfa(gfa_path.string());
   Sequence query  = read_fastq(fastq_path.string());
@@ -225,12 +227,44 @@ run(const fs::path& gfa_path,
       << time_ms << "\n"
       << std::defaultfloat;
 
-  // -- Escrever arquivo .sol --
-  if (!sol_dir.empty() && edit_dist >= 0) {
-    fs::create_directories(sol_dir);
-    fs::path sol_path = sol_dir / (graph_name + "_" + seq_name + "_" + config_name + ".sol");
+  // -- Escrever arquivo .sol (warm start no formato Gurobi) --
+  // Requer: solucao valida + walk eh path (PLI tem restricao de
+  // caminho simples: cada vertice de G visitado no maximo uma vez).
+  if (!cfg.gurobi_sol_dir.empty() && edit_dist >= 0 && sol_result.is_path) {
+    fs::path sol_path = fs::path(cfg.gurobi_sol_dir) /
+                        (graph_name + "_" + seq_name + "_" + config_name + ".sol");
+
+    AlignmentGraph ag(g, query, cfg.costs);
+    auto warm = build_warm_start_arcs(ag, g, query, sol_result.vertices, cfg.costs);
+
+    if (warm) {
+      std::vector<std::pair<std::string, double>> assignments;
+      assignments.reserve(warm->arcs.size());
+      for (const auto& [u, j] : warm->arcs)
+        assignments.emplace_back(arc_var_name(u, j), 1.0);
+
+      std::vector<std::string> header = {
+        "warm start gerado por sgap-heuristic",
+        "graph: "           + graph_name,
+        "sequence: "        + seq_name,
+        "config: "          + config_name,
+        "algorithm: "       + sol_result.name,
+        "edit_dist: "       + std::to_string(edit_dist),
+        "warm_start_cost: " + std::to_string(warm->cost),
+      };
+      write_gurobi_sol(sol_path.string(), assignments, header);
+    } else {
+      std::cerr << "[aviso] nao foi possivel construir warm start para "
+                << sol_path.filename().string() << "\n";
+    }
+  }
+
+  // -- Escrever arquivo .out (relatorio humano-legivel) --
+  if (!out_dir.empty() && edit_dist >= 0) {
+    fs::create_directories(out_dir);
+    fs::path out_path = out_dir / (graph_name + "_" + seq_name + "_" + config_name + ".out");
     std::vector<AlgorithmSolution> solutions = {std::move(sol_result)};
-    write_sol(sol_path, graph_name, seq_name, config_name, g, query, solutions);
+    write_out(out_path, graph_name, seq_name, config_name, g, query, solutions);
   }
 
   std::cerr << algorithm << "(" << variant << ") edit=" << edit_dist << "\n";
@@ -282,14 +316,14 @@ main(int argc, char* argv[])
       if (!file_exists)
         csv << csv_header;
 
-      // Diretorio de .sol ao lado do CSV
-      fs::path sol_dir = csv_path.parent_path() / "sol";
+      // Diretorio de .out (relatorio) ao lado do CSV
+      fs::path out_dir = csv_path.parent_path() / "out";
 
-      run(gfa_path, fastq_path, cfg_path, cfg, csv, sol_dir);
+      run(gfa_path, fastq_path, cfg_path, cfg, csv, out_dir);
       csv.close();
       std::cerr << "resultado escrito em " << csv_path << "\n";
     } else {
-      // Sem arquivo de saida: escreve no stdout, sem .sol
+      // Sem arquivo de saida: escreve no stdout, sem .out
       std::cout << csv_header;
       run(gfa_path, fastq_path, cfg_path, cfg, std::cout, "");
     }

@@ -13,9 +13,11 @@ add_library(sgap-core STATIC
     core/alignment_graph.cpp
     algorithms/alignment_walk.cpp
     algorithms/alignment_potentials.cpp
+    algorithms/warm_start.cpp
     io/gfa.cpp
     io/fastq.cpp
     io/config.cpp
+    io/gurobi_sol.cpp
 )
 target_include_directories(sgap-core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
