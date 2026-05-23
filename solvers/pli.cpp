@@ -14,7 +14,8 @@ solve_pli(const AlignmentGraph&   ag,
           const ExperimentConfig& cfg,
           const std::string&      sol_save_path,
           const std::string&      warm_start_path,
-          const std::string&      lp_save_path)
+          const std::string&      lp_save_path,
+          long long               node_limit)
 {
   const std::size_t N           = ag.vertex_count();
   const std::size_t G           = ag.graph_vertex_count(); // n (sem dummy)
@@ -31,6 +32,8 @@ solve_pli(const AlignmentGraph&   ag,
   GRBModel model(env);
   if (cfg.pli_time_limit_s > 0.0)
     model.set(GRB_DoubleParam_TimeLimit, cfg.pli_time_limit_s);
+  if (node_limit >= 0)
+    model.set(GRB_DoubleParam_NodeLimit, static_cast<double>(node_limit));
 
   struct ArcRec { VertexId u, v; int w; GRBVar x; };
   std::vector<ArcRec> arcs;
@@ -108,19 +111,43 @@ solve_pli(const AlignmentGraph&   ag,
 
   model.optimize();
 
-  // Aceita otimo ou solucao viavel encontrada antes do time limit.
-  const int status = model.get(GRB_IntAttr_Status);
+  const int  status       = model.get(GRB_IntAttr_Status);
   const bool has_solution = model.get(GRB_IntAttr_SolCount) > 0;
-  if (status != GRB_OPTIMAL && !has_solution)
+
+  // Inviabilidade real: nao ha bounds uteis nem caminho.
+  if (status == GRB_INFEASIBLE || status == GRB_INF_OR_UNBD ||
+      status == GRB_UNBOUNDED)
     return std::nullopt;
 
-  if (!sol_save_path.empty()) {
+  SolverResult result;
+  result.variant = "path";
+  result.status  = status;
+
+  // ObjBound existe sempre que o modelo foi (ao menos parcialmente)
+  // resolvido como MIP; o try/catch protege casos degenerados.
+  try { result.final_lb = model.get(GRB_DoubleAttr_ObjBound); }
+  catch (GRBException&) {}
+
+  if (has_solution) {
+    try { result.final_ub = model.get(GRB_DoubleAttr_ObjVal); } catch (GRBException&) {}
+    try { result.mip_gap  = model.get(GRB_DoubleAttr_MIPGap); } catch (GRBException&) {}
+  }
+
+  if (!sol_save_path.empty() && has_solution) {
     auto parent = std::filesystem::path(sol_save_path).parent_path();
     if (!parent.empty())
       std::filesystem::create_directories(parent);
     model.write(sol_save_path);
   }
 
+  // Sem incumbente: devolve resultado so com bounds/status.
+  if (!has_solution) {
+    result.cost     = -1;
+    result.has_path = false;
+    return result;
+  }
+
+  // Reconstroi o caminho a partir dos arcos selecionados.
   std::vector<std::vector<std::size_t>> sel_out(N);
   for (std::size_t i = 0; i < arcs.size(); ++i)
     if (arcs[i].x.get(GRB_DoubleAttr_X) >= 0.5)
@@ -132,16 +159,25 @@ solve_pli(const AlignmentGraph&   ag,
 
   VertexId    cur    = source;
   std::size_t safety = 0;
+  bool        ok     = true;
   while (cur != sink && safety++ <= N) {
     auto& outs = sel_out[cur];
-    if (outs.empty()) return std::nullopt;
+    if (outs.empty()) { ok = false; break; }
     cur = arcs[outs.front()].v;
     walk.push_back(cur);
   }
-  if (cur != sink) return std::nullopt;
+  if (!ok || cur != sink) {
+    // Incumbente existe mas nao formou caminho S->T (nao deve acontecer
+    // sob as restricoes acima; mantemos os bounds e marcamos has_path=false).
+    result.cost     = -1;
+    result.has_path = false;
+    return result;
+  }
 
-  int cost = static_cast<int>(std::lround(model.get(GRB_DoubleAttr_ObjVal)));
-  return SolverResult{cost, std::move(walk), "path"};
+  result.cost     = static_cast<int>(std::lround(model.get(GRB_DoubleAttr_ObjVal)));
+  result.ag_walk  = std::move(walk);
+  result.has_path = true;
+  return result;
 }
 
 } // namespace seq

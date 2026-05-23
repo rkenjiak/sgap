@@ -26,8 +26,9 @@ struct ExperimentConfig {
   AlignmentCosts costs = {1, 1, 1};
 
   // PLI (Gurobi)
-  bool   pli_verbose      = false;  // GRB OutputFlag / LogToConsole
-  double pli_time_limit_s = 0.0;    // 0 = sem limite
+  bool      pli_verbose      = false;  // GRB OutputFlag / LogToConsole
+  double    pli_time_limit_s = 0.0;    // 0 = sem limite
+  long long pli_node_limit   = -1;     // <0 = sem limite; 0 = so no raiz
 
   // Persistencia em formato .sol do Gurobi (compartilhado por
   // sgap-solver e sgap-heuristic).
