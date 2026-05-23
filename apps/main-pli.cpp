@@ -23,18 +23,48 @@
 #include "gurobi_c++.h"
 
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <string>
 
+#include "gurobi_c++.h"
+
 namespace fs = std::filesystem;
 using namespace seq;
 
 static const char* csv_header =
     "graph,sequence,vertices,arcs,query_len,"
-    "algorithm,variant,edit_dist,induced_len,is_path,time_ms\n";
+    "algorithm,variant,edit_dist,induced_len,is_path,time_ms,"
+    "lb,ub,mip_gap,node_limit,status\n";
+
+static const char*
+status_label(int s)
+{
+  switch (s) {
+    case GRB_OPTIMAL:      return "optimal";
+    case GRB_TIME_LIMIT:   return "time_limit";
+    case GRB_NODE_LIMIT:   return "node_limit";
+    case GRB_INFEASIBLE:   return "infeasible";
+    case GRB_INF_OR_UNBD:  return "inf_or_unbd";
+    case GRB_UNBOUNDED:    return "unbounded";
+    case GRB_INTERRUPTED:  return "interrupted";
+    case GRB_SUBOPTIMAL:   return "suboptimal";
+    case GRB_CUTOFF:       return "cutoff";
+    case GRB_ITERATION_LIMIT: return "iter_limit";
+    case GRB_SOLUTION_LIMIT:  return "sol_limit";
+    case -1:               return "no_run";
+    default:               return "other";
+  }
+}
+
+static void
+write_dbl(std::ostream& out, double v)
+{
+  if (std::isfinite(v)) out << v;
+}
 
 static void
 run(const fs::path& gfa_path,
@@ -86,11 +116,14 @@ run(const fs::path& gfa_path,
 
   // ----- despacho por algoritmo -----
   std::optional<SolverResult> result;
-
-  auto t0 = std::chrono::steady_clock::now();
+  double time_ms = 0.0;
 
   if (algorithm == "pli") {
-    result = solve_pli(ag, cfg, sol_path, warm_path, lp_path);
+    auto t0 = std::chrono::steady_clock::now();
+    result  = solve_pli(ag, cfg, sol_path, warm_path, lp_path,
+                        cfg.pli_node_limit);
+    auto t1 = std::chrono::steady_clock::now();
+    time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
   }
   // else if (algorithm == "lagrangian") {
   //   result = solve_lagrangian(ag, cfg);
@@ -106,21 +139,29 @@ run(const fs::path& gfa_path,
     return;
   }
 
-  auto t1 = std::chrono::steady_clock::now();
-  double time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-
   int  edit_dist   = -1;
   int  induced_len = 0;
   bool is_path     = false;
   std::string variant = "?";
 
-  if (result) {
+  if (result && result->has_path) {
     auto walk    = ag.to_graph_walk(result->ag_walk);
     auto induced = g.induced_sequence(walk);
     edit_dist    = result->cost;
     induced_len  = static_cast<int>(induced.size());
     is_path      = g.is_valid_path(walk);
     variant      = result->variant;
+  } else if (result) {
+    variant = result->variant;
+  }
+
+  double lb = std::nan(""), ub = std::nan(""), mip_gap = std::nan("");
+  int    st = -1;
+  if (result) {
+    lb      = result->final_lb;
+    ub      = result->final_ub;
+    mip_gap = result->mip_gap;
+    st      = result->status;
   }
 
   out << graph_name << ","
@@ -133,11 +174,17 @@ run(const fs::path& gfa_path,
       << edit_dist << ","
       << induced_len << ","
       << (is_path ? 1 : 0) << ","
-      << std::fixed << std::setprecision(2)
-      << time_ms << "\n"
-      << std::defaultfloat;
+      << std::fixed << std::setprecision(2) << time_ms << ",";
+  out << std::defaultfloat;
+  write_dbl(out, lb);      out << ",";
+  write_dbl(out, ub);      out << ",";
+  write_dbl(out, mip_gap); out << ",";
+  out << cfg.pli_node_limit << ",";
+  out << status_label(st) << "\n";
 
-  std::cerr << algorithm << "(" << variant << ") edit=" << edit_dist << "\n";
+  std::cerr << algorithm << "(" << variant << ") edit=" << edit_dist
+            << " lb=" << lb << " ub=" << ub << " gap=" << mip_gap
+            << " " << status_label(st) << "\n";
 }
 
 int
