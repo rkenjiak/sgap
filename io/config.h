@@ -45,6 +45,11 @@ struct ExperimentConfig {
   // gurobi_lp_dir : se nao vazio, sgap-solver grava o modelo do PLI em
   //                 <dir>/<grafo>_<seq>_<config>.lp antes do optimize().
   std::string gurobi_lp_dir;
+
+  // heuristic_out_dir : se nao vazio, sgap-heuristic grava relatorio
+  //                     humano-legivel em
+  //                     <dir>/<grafo>_<seq>_<config>.out.
+  std::string heuristic_out_dir;
 };
 
 ExperimentConfig read_config(const std::string& path);

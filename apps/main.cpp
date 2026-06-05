@@ -25,9 +25,13 @@ using namespace seq;
 //  CSV header (mesmo formato do benchmark original)
 // ============================================================================
 
+// Schema unificado com sgap-solver. Colunas que a heuristica nao
+// produz ficam vazias (lb, node_limit). status eh sempre "found" ou
+// "no_path".
 static const char* csv_header =
   "graph,sequence,vertices,arcs,query_len,"
-  "algorithm,variant,edit_dist,induced_len,is_path,time_ms\n";
+  "algorithm,variant,ub,lb,induced_len,is_path,time_ms,"
+  "node_limit,status\n";
 
 // ============================================================================
 //  Solucao de um algoritmo (vertices + metricas)
@@ -96,8 +100,7 @@ run(const fs::path& gfa_path,
     const fs::path& fastq_path,
     const fs::path& cfg_path,
     const ExperimentConfig& cfg,
-    std::ostream& out,
-    const fs::path& out_dir)
+    std::ostream& out)
 {
   SequenceGraph g = read_gfa(gfa_path.string());
   Sequence query  = read_fastq(fastq_path.string());
@@ -213,19 +216,25 @@ run(const fs::path& gfa_path,
   }
 
   // -- Escrever linha CSV --
+  // edit_dist eh um UB (heuristica nunca produz LB). Vazio quando o
+  // algoritmo falhou em encontrar caminho. lb e node_limit ficam
+  // sempre vazios para manter o schema unificado com o sgap-solver.
   out << graph_name << ","
       << seq_name << ","
       << g.vertex_count() << ","
       << g.arc_count() << ","
       << query.size() << ","
       << algorithm << ","
-      << variant << ","
-      << edit_dist << ","
+      << variant << ",";
+  if (edit_dist >= 0) out << edit_dist;    // ub
+  out << ",";                              // lb (vazio)
+  out << ","
       << induced_len << ","
       << (is_path ? 1 : 0) << ","
-      << std::fixed << std::setprecision(2)
-      << time_ms << "\n"
-      << std::defaultfloat;
+      << std::fixed << std::setprecision(2) << time_ms
+      << std::defaultfloat << ","
+      << ","                               // node_limit (vazio)
+      << (edit_dist >= 0 ? "found" : "no_path") << "\n";
 
   // -- Escrever arquivo .sol (warm start no formato Gurobi) --
   // Requer: solucao valida + walk eh path (PLI tem restricao de
@@ -260,7 +269,10 @@ run(const fs::path& gfa_path,
   }
 
   // -- Escrever arquivo .out (relatorio humano-legivel) --
-  if (!out_dir.empty() && edit_dist >= 0) {
+  // Mesmo padrao de .sol e .lp: so grava se o diretorio foi
+  // explicitamente configurado.
+  if (!cfg.heuristic_out_dir.empty() && edit_dist >= 0) {
+    fs::path out_dir = cfg.heuristic_out_dir;
     fs::create_directories(out_dir);
     fs::path out_path = out_dir / (graph_name + "_" + seq_name + "_" + config_name + ".out");
     std::vector<AlgorithmSolution> solutions = {std::move(sol_result)};
@@ -316,16 +328,12 @@ main(int argc, char* argv[])
       if (!file_exists)
         csv << csv_header;
 
-      // Diretorio de .out (relatorio) ao lado do CSV
-      fs::path out_dir = csv_path.parent_path() / "out";
-
-      run(gfa_path, fastq_path, cfg_path, cfg, csv, out_dir);
+      run(gfa_path, fastq_path, cfg_path, cfg, csv);
       csv.close();
       std::cerr << "resultado escrito em " << csv_path << "\n";
     } else {
-      // Sem arquivo de saida: escreve no stdout, sem .out
       std::cout << csv_header;
-      run(gfa_path, fastq_path, cfg_path, cfg, std::cout, "");
+      run(gfa_path, fastq_path, cfg_path, cfg, std::cout);
     }
   } catch (const std::exception& e) {
     std::cerr << "erro: " << e.what() << "\n";

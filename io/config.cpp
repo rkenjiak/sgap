@@ -65,6 +65,7 @@ ExperimentConfig read_config(const std::string& path) {
     else if (key == "gurobi_sol_dir")     cfg.gurobi_sol_dir = val;
     else if (key == "pli_warm_start_path") cfg.pli_warm_start_path = val;
     else if (key == "gurobi_lp_dir")      cfg.gurobi_lp_dir = val;
+    else if (key == "heuristic_out_dir")  cfg.heuristic_out_dir = val;
   }
 
   return cfg;

@@ -130,7 +130,6 @@ solve_pli(const AlignmentGraph&   ag,
 
   if (has_solution) {
     try { result.final_ub = model.get(GRB_DoubleAttr_ObjVal); } catch (GRBException&) {}
-    try { result.mip_gap  = model.get(GRB_DoubleAttr_MIPGap); } catch (GRBException&) {}
   }
 
   if (!sol_save_path.empty() && has_solution) {

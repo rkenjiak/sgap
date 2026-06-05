@@ -37,8 +37,8 @@ using namespace seq;
 
 static const char* csv_header =
     "graph,sequence,vertices,arcs,query_len,"
-    "algorithm,variant,edit_dist,induced_len,is_path,time_ms,"
-    "lb,ub,mip_gap,node_limit,status\n";
+    "algorithm,variant,ub,lb,induced_len,is_path,time_ms,"
+    "node_limit,status\n";
 
 static const char*
 status_label(int s)
@@ -60,10 +60,28 @@ status_label(int s)
   }
 }
 
+// ub: custo do incumbente. Como AlignmentCosts sao int, o objetivo eh
+// inteiro; arredondamos com lround. Vazio se NaN/inf.
 static void
-write_dbl(std::ostream& out, double v)
+write_ub(std::ostream& out, double v)
 {
-  if (std::isfinite(v)) out << v;
+  if (std::isfinite(v))
+    out << static_cast<long long>(std::lround(v));
+}
+
+// lb: ObjBound do Gurobi (pode ser fracionario por causa do LP relax).
+// Precisao fixa de 6 casas para nao alternar entre default/cientifico
+// no CSV. Vazio se NaN/inf.
+static void
+write_lb(std::ostream& out, double v)
+{
+  if (std::isfinite(v)) {
+    auto flags = out.flags();
+    auto prec  = out.precision();
+    out << std::fixed << std::setprecision(6) << v;
+    out.flags(flags);
+    out.precision(prec);
+  }
 }
 
 static void
@@ -139,7 +157,6 @@ run(const fs::path& gfa_path,
     return;
   }
 
-  int  edit_dist   = -1;
   int  induced_len = 0;
   bool is_path     = false;
   std::string variant = "?";
@@ -147,7 +164,6 @@ run(const fs::path& gfa_path,
   if (result && result->has_path) {
     auto walk    = ag.to_graph_walk(result->ag_walk);
     auto induced = g.induced_sequence(walk);
-    edit_dist    = result->cost;
     induced_len  = static_cast<int>(induced.size());
     is_path      = g.is_valid_path(walk);
     variant      = result->variant;
@@ -155,13 +171,12 @@ run(const fs::path& gfa_path,
     variant = result->variant;
   }
 
-  double lb = std::nan(""), ub = std::nan(""), mip_gap = std::nan("");
+  double lb = std::nan(""), ub = std::nan("");
   int    st = -1;
   if (result) {
-    lb      = result->final_lb;
-    ub      = result->final_ub;
-    mip_gap = result->mip_gap;
-    st      = result->status;
+    lb = result->final_lb;
+    ub = result->final_ub;
+    st = result->status;
   }
 
   out << graph_name << ","
@@ -170,21 +185,23 @@ run(const fs::path& gfa_path,
       << g.arc_count() << ","
       << query.size() << ","
       << algorithm << ","
-      << variant << ","
-      << edit_dist << ","
-      << induced_len << ","
+      << variant << ",";
+  write_ub(out, ub); out << ",";
+  write_lb(out, lb); out << ",";
+  out << induced_len << ","
       << (is_path ? 1 : 0) << ","
-      << std::fixed << std::setprecision(2) << time_ms << ",";
-  out << std::defaultfloat;
-  write_dbl(out, lb);      out << ",";
-  write_dbl(out, ub);      out << ",";
-  write_dbl(out, mip_gap); out << ",";
-  out << cfg.pli_node_limit << ",";
-  out << status_label(st) << "\n";
+      << std::fixed << std::setprecision(2) << time_ms
+      << std::defaultfloat << ","
+      << cfg.pli_node_limit << ","
+      << status_label(st) << "\n";
 
-  std::cerr << algorithm << "(" << variant << ") edit=" << edit_dist
-            << " lb=" << lb << " ub=" << ub << " gap=" << mip_gap
-            << " " << status_label(st) << "\n";
+  std::cerr << algorithm << "(" << variant << ")";
+  if (std::isfinite(ub))
+    std::cerr << " ub=" << static_cast<long long>(std::lround(ub));
+  if (std::isfinite(lb))
+    std::cerr << " lb=" << std::fixed << std::setprecision(6) << lb
+              << std::defaultfloat;
+  std::cerr << " " << status_label(st) << "\n";
 }
 
 int
