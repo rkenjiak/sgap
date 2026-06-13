@@ -221,7 +221,8 @@ run(const fs::path& gfa_path,
     bp.seed        = static_cast<unsigned long>(cfg.brkga_seed);
 
     variant = "vp_p" + std::to_string(bp.pop_size)
-            + "_g" + std::to_string(bp.generations);
+            + "_g" + std::to_string(bp.generations)
+            + "_s" + std::to_string(bp.seed);
 
     auto t0 = std::chrono::steady_clock::now();
     auto result = brkga_alignment(g, query, bp);
