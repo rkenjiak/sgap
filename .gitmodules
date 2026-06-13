@@ -1,0 +1,3 @@
+[submodule "third_party/brkgaAPI"]
+	path = third_party/brkgaAPI
+	url = git@github.com:rkenjiak/brkgaAPI.git

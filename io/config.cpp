@@ -56,6 +56,12 @@ ExperimentConfig read_config(const std::string& path) {
     else if (key == "beam_width")         cfg.beam_width = std::stoi(val);
     else if (key == "beam_width_mode")   cfg.beam_width_mode = to_lower(val);
     else if (key == "beam_potentials")      cfg.beam_potentials = to_lower(val);
+    else if (key == "brkga_pop_size")     cfg.brkga_pop_size = std::stoi(val);
+    else if (key == "brkga_pe")           cfg.brkga_pe = std::stod(val);
+    else if (key == "brkga_pm")           cfg.brkga_pm = std::stod(val);
+    else if (key == "brkga_rhoe")         cfg.brkga_rhoe = std::stod(val);
+    else if (key == "brkga_generations")  cfg.brkga_generations = std::stoi(val);
+    else if (key == "brkga_seed")         cfg.brkga_seed = static_cast<unsigned>(std::stoul(val));
     else if (key == "cost_substitution")  cfg.costs.substitution = std::stoi(val);
     else if (key == "cost_insertion")     cfg.costs.insertion = std::stoi(val);
     else if (key == "cost_deletion")      cfg.costs.deletion = std::stoi(val);

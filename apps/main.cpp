@@ -7,6 +7,7 @@
 #include "algorithms/warm_start.h"
 #include "heuristics/greedy_degree.h"
 #include "heuristics/beam_search.h"
+#include "heuristics/brkga_search.h"
 #include "io/gfa.h"
 #include "io/fastq.h"
 #include "io/config.h"
@@ -207,6 +208,33 @@ run(const fs::path& gfa_path,
       is_path     = g.is_valid_path(result->vertices);
 
       sol_result = {"beam_" + variant, result->vertices,
+                    std::move(induced), edit_dist, is_path};
+    }
+
+  } else if (algorithm == "brkga") {
+    BrkgaParams bp;
+    bp.pop_size    = static_cast<unsigned>(cfg.brkga_pop_size);
+    bp.pe          = cfg.brkga_pe;
+    bp.pm          = cfg.brkga_pm;
+    bp.rhoe        = cfg.brkga_rhoe;
+    bp.generations = static_cast<unsigned>(cfg.brkga_generations);
+    bp.seed        = static_cast<unsigned long>(cfg.brkga_seed);
+
+    variant = "vp_p" + std::to_string(bp.pop_size)
+            + "_g" + std::to_string(bp.generations);
+
+    auto t0 = std::chrono::steady_clock::now();
+    auto result = brkga_alignment(g, query, bp);
+    auto t1 = std::chrono::steady_clock::now();
+    time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+    if (result) {
+      auto induced = g.induced_sequence(result->vertices);
+      edit_dist   = result->cost;
+      induced_len = static_cast<int>(induced.size());
+      is_path     = g.is_valid_path(result->vertices);
+
+      sol_result = {"brkga_" + variant, result->vertices,
                     std::move(induced), edit_dist, is_path};
     }
 
