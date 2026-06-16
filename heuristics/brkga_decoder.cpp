@@ -40,7 +40,10 @@ SGAPDecoder::build_path(const std::vector<double>& key, int* cost_out) const
   VertexId u = start;
 
   // Estende escolhendo o vizinho nao-visitado de menor chave.
-  while (true) {
+  // Para ao chegar no tamanho da query: induced_sequence() emite 1 simbolo
+  // por vertice, entao path.size() == |induced|, e uma induzida maior que a
+  // query so adiciona custo (edit_distance >= ||induced| - |query||).
+  while (path.size() < query_.size()) {
     auto nbrs = g_.neighbors(u);
 
     VertexId best = 0;

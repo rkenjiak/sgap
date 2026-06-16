@@ -12,7 +12,9 @@ namespace seq {
 // Cromossomo = vector<double> de tamanho |V|, cada chave (allele) em [0,1):
 //   - start  = argmax_v k[v]
 //   - de u, escolhe o vizinho nao-visitado de menor k[v]
-//   - para quando nao ha vizinho nao-visitado
+//   - para quando nao ha vizinho nao-visitado OU quando o caminho atinge
+//     |query| vertices (induced_sequence emite 1 simbolo por vertice, logo
+//     uma induzida maior que a query so acrescentaria custo de edicao)
 //
 // Fitness = edit_distance(g.induced_sequence(path), query)  (menor = melhor).
 //
