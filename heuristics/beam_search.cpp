@@ -37,20 +37,28 @@ struct State {
   DynBitset visited;
 };
 
+// Informacao leve preservada por todas as camadas, suficiente para a
+// reconstrucao do caminho. Os bitsets (em State) so vivem para a camada
+// anterior + atual via buffer rolante.
+struct Trace {
+  std::size_t sg_vertex = 0;
+  int parent_idx = NO_PARENT;
+};
+
 std::vector<VertexId>
-reconstruct_path(const std::vector<std::vector<State>>& beams,
+reconstruct_path(const std::vector<std::vector<Trace>>& traces,
                  std::size_t best_layer, int best_idx,
                  std::size_t dummy)
 {
   std::vector<VertexId> path;
   int idx = best_idx;
   for (std::size_t l = best_layer + 1; l-- > 0; ) {
-    const auto& st = beams[l][idx];
-    if (st.sg_vertex != dummy) {
-      if (path.empty() || path.back() != static_cast<VertexId>(st.sg_vertex))
-        path.push_back(static_cast<VertexId>(st.sg_vertex));
+    const auto& tr = traces[l][idx];
+    if (tr.sg_vertex != dummy) {
+      if (path.empty() || path.back() != static_cast<VertexId>(tr.sg_vertex))
+        path.push_back(static_cast<VertexId>(tr.sg_vertex));
     }
-    idx = st.parent_idx;
+    idx = tr.parent_idx;
     if (idx < 0) break;
   }
   std::reverse(path.begin(), path.end());
@@ -77,7 +85,16 @@ beam_search_alignment(const SequenceGraph& graph,
   const std::size_t n = graph.vertex_count();
   const std::size_t dummy = n;
 
-  std::vector<std::vector<State>> beams(m);
+  std::vector<std::vector<Trace>> traces(m);
+  std::vector<State> prev;
+
+  // Helper: grava o trace leve da camada (mesma ordem dos estados podados).
+  auto record_trace = [](std::vector<Trace>& dst,
+                         const std::vector<State>& states) {
+    dst.reserve(states.size());
+    for (const auto& st : states)
+      dst.push_back({st.sg_vertex, st.parent_idx});
+  };
 
   // Camada 0
   {
@@ -105,15 +122,16 @@ beam_search_alignment(const SequenceGraph& graph,
                        });
       candidates.resize(k);
     }
-    beams[0] = std::move(candidates);
+    record_trace(traces[0], candidates);
+    prev = std::move(candidates);
   }
 
   // Camadas 1..m-1
   for (std::size_t i = 1; i < m; ++i) {
     std::vector<State> candidates;
 
-    for (int si = 0; si < static_cast<int>(beams[i - 1].size()); ++si) {
-      const auto& st = beams[i - 1][si];
+    for (int si = 0; si < static_cast<int>(prev.size()); ++si) {
+      const auto& st = prev[si];
       std::size_t u = st.sg_vertex;
       int g = st.cost_g;
       const DynBitset& vis = st.visited;
@@ -159,24 +177,24 @@ beam_search_alignment(const SequenceGraph& graph,
                        });
       candidates.resize(k);
     }
-    beams[i] = std::move(candidates);
+    record_trace(traces[i], candidates);
+    prev = std::move(candidates);  // libera os bitsets da camada anterior
   }
 
   // Selecionar melhor
-  const auto& last = beams[m - 1];
-  if (last.empty()) return std::nullopt;
+  if (prev.empty()) return std::nullopt;
 
   int best_idx = -1;
   int best_g = std::numeric_limits<int>::max();
-  for (int i = 0; i < static_cast<int>(last.size()); ++i) {
-    if (last[i].cost_g < best_g) {
-      best_g = last[i].cost_g;
+  for (int i = 0; i < static_cast<int>(prev.size()); ++i) {
+    if (prev[i].cost_g < best_g) {
+      best_g = prev[i].cost_g;
       best_idx = i;
     }
   }
   if (best_idx < 0) return std::nullopt;
 
-  auto path = reconstruct_path(beams, m - 1, best_idx, dummy);
+  auto path = reconstruct_path(traces, m - 1, best_idx, dummy);
   if (path.empty()) return std::nullopt;
 
   auto induced = graph.induced_sequence(path);
