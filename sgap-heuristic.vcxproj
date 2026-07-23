@@ -140,12 +140,17 @@
     <ClCompile Include="apps\main.cpp" />
     <ClCompile Include="heuristics\greedy_degree.cpp" />
     <ClCompile Include="heuristics\beam_search.cpp" />
+    <!-- Relaxacao Lagrangeana: nao usa Gurobi, entao vive aqui e nao no
+         sgap-solver (fica disponivel sem o build do Gurobi). -->
+    <ClCompile Include="solvers\lagrangian.cpp" />
   </ItemGroup>
 
   <!-- Headers -->
   <ItemGroup>
     <ClInclude Include="heuristics\greedy_degree.h" />
     <ClInclude Include="heuristics\beam_search.h" />
+    <ClInclude Include="solvers\solver_interface.h" />
+    <ClInclude Include="solvers\lagrangian.h" />
   </ItemGroup>
 
   <!-- Referencia ao sgap-core (linkage automatico da .lib) -->

@@ -30,6 +30,19 @@ struct ExperimentConfig {
   double    pli_time_limit_s = 0.0;    // 0 = sem limite
   long long pli_node_limit   = -1;     // <0 = sem limite; 0 = so no raiz
 
+  // Relaxacao Lagrangeana (algorithm = "lagrangian").
+  // Dualiza a restricao de caminho simples; o subproblema vira um
+  // caminho minimo S->T resolvido por Dijkstra e o dual eh maximizado
+  // pelo metodo do subgradiente.
+  int       lagr_max_iters      = 500;  // teto de iteracoes do subgradiente
+  double    lagr_time_limit_s   = 0.0;  // 0 = sem limite
+  double    lagr_alpha          = 2.0;  // passo inicial do subgradiente
+  int       lagr_alpha_patience = 20;   // halva alpha apos N iters sem melhora do LB
+  // Largura da beam do reparo primal (guiado por custos reduzidos):
+  //   0 = auto (min(densidade*|V|, 64));
+  //   1 = guloso puro (comportamento original); N = largura fixa.
+  int       lagr_repair_beam    = 0;
+
   // Persistencia em formato .sol do Gurobi (compartilhado por
   // sgap-solver e sgap-heuristic).
   // gurobi_sol_dir       : se nao vazio, ambos os binarios gravam
