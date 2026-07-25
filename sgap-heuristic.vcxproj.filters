@@ -7,6 +7,9 @@
     <Filter Include="heuristics">
       <UniqueIdentifier>{A1B2C3D4-0002-0001-0001-000000000002}</UniqueIdentifier>
     </Filter>
+    <Filter Include="third_party">
+      <UniqueIdentifier>{A1B2C3D4-0002-0001-0001-000000000003}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="apps\main.cpp">
@@ -18,12 +21,27 @@
     <ClCompile Include="heuristics\beam_search.cpp">
       <Filter>heuristics</Filter>
     </ClCompile>
+    <ClCompile Include="heuristics\brkga_decoder.cpp">
+      <Filter>heuristics</Filter>
+    </ClCompile>
+    <ClCompile Include="heuristics\brkga_search.cpp">
+      <Filter>heuristics</Filter>
+    </ClCompile>
+    <ClCompile Include="third_party\brkgaAPI\brkgaAPI\Population.cpp">
+      <Filter>third_party</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="heuristics\greedy_degree.h">
       <Filter>heuristics</Filter>
     </ClInclude>
     <ClInclude Include="heuristics\beam_search.h">
+      <Filter>heuristics</Filter>
+    </ClInclude>
+    <ClInclude Include="heuristics\brkga_decoder.h">
+      <Filter>heuristics</Filter>
+    </ClInclude>
+    <ClInclude Include="heuristics\brkga_search.h">
       <Filter>heuristics</Filter>
     </ClInclude>
   </ItemGroup>

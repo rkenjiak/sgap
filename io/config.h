@@ -22,6 +22,14 @@ struct ExperimentConfig {
   std::string beam_width_mode = "constant"; // "constant" | "n" | "density_n"
   std::string beam_potentials = "bfs01";   // "dijkstra" | "bfs01"
 
+  // BRKGA (modo basico, decoder vertex-priority)
+  int      brkga_pop_size    = 256;   // p
+  double   brkga_pe          = 0.20;  // fracao elite
+  double   brkga_pm          = 0.10;  // fracao mutantes
+  double   brkga_rhoe        = 0.70;  // prob. heranca elite
+  int      brkga_generations = 500;
+  unsigned brkga_seed        = 42;
+
   // Custos de alinhamento
   AlignmentCosts costs = {1, 1, 1};
 
