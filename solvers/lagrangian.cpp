@@ -333,21 +333,9 @@ solve_lagrangian(const AlignmentGraph&   ag,
   // iteracao pelo reparo guiado por custo reduzido (cost-to-go modificado).
   const RevAdj rev = build_reverse_adj(ag);
 
-  // Largura da beam do reparo. 0 => auto; 1 => guloso; N => fixa.
-  // Auto = min(densidade*|V|, 64): a regra density_n da heuristica beam
-  // (densidade*|V|) cresce demais (centenas/milhares) e estrangula o
-  // subgradiente sem ganho de UB; experimentos mostraram que B~64 ja
-  // satura o ganho de qualidade a uma fracao do custo, por isso o cap.
-  constexpr int kAutoBeamCap = 64;
-  int beam_B = cfg.lagr_repair_beam;
-  if (beam_B <= 0) {
-    const double density = ag.vertex_count() > 0
-        ? static_cast<double>(ag.arc_count()) / ag.vertex_count()
-        : 1.0;
-    const int scaled = static_cast<int>(
-        std::lround(density * ag.vertex_count()));
-    beam_B = std::max(1, std::min(scaled, kAutoBeamCap));
-  }
+  // Largura da beam do reparo primal, usada literalmente (B=1 reproduz o
+  // guloso). O clamp para >= 1 fica em repair_primal.
+  const int beam_B = cfg.lagr_repair_beam;
   if (verbose) std::cerr << "  [lagr] reparo beam_width=" << beam_B << "\n";
 
   // ---- UB primal inicial: warm start (se houver) e/ou reparo ----

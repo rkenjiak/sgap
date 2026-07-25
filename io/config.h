@@ -46,10 +46,10 @@ struct ExperimentConfig {
   double    lagr_time_limit_s   = 0.0;  // 0 = sem limite
   double    lagr_alpha          = 2.0;  // passo inicial do subgradiente
   int       lagr_alpha_patience = 20;   // halva alpha apos N iters sem melhora do LB
-  // Largura da beam do reparo primal (guiado por custos reduzidos):
-  //   0 = auto (min(densidade*|V|, 64));
-  //   1 = guloso puro (comportamento original); N = largura fixa.
-  int       lagr_repair_beam    = 0;
+  // Largura da beam do reparo primal (guiado por custos reduzidos).
+  // Usada literalmente: 1 = guloso puro; N = largura fixa da beam.
+  // Valores <= 0 sao tratados como 1 em repair_primal.
+  int       lagr_repair_beam    = 64;
 
   // Persistencia em formato .sol do Gurobi (compartilhado por
   // sgap-solver e sgap-heuristic).
