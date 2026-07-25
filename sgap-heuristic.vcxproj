@@ -147,6 +147,9 @@
     <ClCompile Include="third_party\brkgaAPI\brkgaAPI\Population.cpp">
       <DisableSpecificWarnings>4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
+    <!-- Relaxacao Lagrangeana: nao usa Gurobi, entao vive aqui e nao no
+         sgap-solver (fica disponivel sem o build do Gurobi). -->
+    <ClCompile Include="solvers\lagrangian.cpp" />
   </ItemGroup>
 
   <!-- Headers -->
@@ -155,6 +158,8 @@
     <ClInclude Include="heuristics\beam_search.h" />
     <ClInclude Include="heuristics\brkga_decoder.h" />
     <ClInclude Include="heuristics\brkga_search.h" />
+    <ClInclude Include="solvers\solver_interface.h" />
+    <ClInclude Include="solvers\lagrangian.h" />
   </ItemGroup>
 
   <!-- Referencia ao sgap-core (linkage automatico da .lib) -->

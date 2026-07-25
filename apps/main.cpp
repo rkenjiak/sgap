@@ -8,6 +8,7 @@
 #include "heuristics/greedy_degree.h"
 #include "heuristics/beam_search.h"
 #include "heuristics/brkga_search.h"
+#include "solvers/lagrangian.h"
 #include "io/gfa.h"
 #include "io/fastq.h"
 #include "io/config.h"
@@ -16,6 +17,7 @@
 #include <iomanip>
 #include <fstream>
 #include <chrono>
+#include <cmath>
 #include <string>
 #include <filesystem>
 
@@ -33,6 +35,18 @@ static const char* csv_header =
   "graph,sequence,vertices,arcs,query_len,"
   "algorithm,variant,ub,lb,induced_len,is_path,time_ms,"
   "node_limit,status\n";
+
+// Rotulo do status do Lagrangeano (codigos proprios, sem Gurobi).
+static const char*
+lagr_status_label(int s)
+{
+  switch (s) {
+    case LAGR_OPTIMAL:         return "optimal";
+    case LAGR_TIME_LIMIT:      return "time_limit";
+    case LAGR_ITERATION_LIMIT: return "iter_limit";
+    default:                   return "other";
+  }
+}
 
 // ============================================================================
 //  Solucao de um algoritmo (vertices + metricas)
@@ -119,6 +133,9 @@ run(const fs::path& gfa_path,
   int    induced_len = 0;
   bool   is_path = false;
   double time_ms = 0.0;
+  double lb_val  = std::nan("");   // preenchido apenas pelo Lagrangeano
+  int    lagr_status = -1;         // status bruto do Lagrangeano
+  bool   have_lagr_status = false; // true => usa lagr_status_label no CSV
 
   if (algorithm == "jain") {
     variant = cfg.jain_method;
@@ -226,6 +243,26 @@ run(const fs::path& gfa_path,
 
     auto t0 = std::chrono::steady_clock::now();
     auto result = brkga_alignment(g, query, bp);
+  } else if (algorithm == "lagrangian") {
+    variant = "lagrangian";
+    AlignmentGraph ag(g, query, cfg.costs);
+
+    // .sol de saida: passado ao solver, que grava seu proprio caminho
+    // exato (walk_to_assignments) como warm start compativel com o PLI.
+    std::string sol_path;
+    if (!cfg.gurobi_sol_dir.empty()) {
+      fs::create_directories(cfg.gurobi_sol_dir);
+      sol_path = (fs::path(cfg.gurobi_sol_dir) /
+                  (graph_name + "_" + seq_name + "_" + config_name + ".sol")).string();
+    }
+
+    // Warm start opcional (ex.: .sol de outra heuristica) como UB inicial.
+    std::string warm_path;
+    if (!cfg.pli_warm_start_path.empty() && fs::exists(cfg.pli_warm_start_path))
+      warm_path = cfg.pli_warm_start_path;
+
+    auto t0 = std::chrono::steady_clock::now();
+    auto result = solve_lagrangian(ag, cfg, sol_path, warm_path);
     auto t1 = std::chrono::steady_clock::now();
     time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
@@ -237,6 +274,17 @@ run(const fs::path& gfa_path,
 
       sol_result = {"brkga_" + variant, result->vertices,
                     std::move(induced), edit_dist, is_path};
+      lb_val           = result->final_lb;   // LB dual (unico algoritmo que produz)
+      lagr_status      = result->status;
+      have_lagr_status = true;
+      if (result->has_path) {
+        auto walk    = ag.to_graph_walk(result->ag_walk);
+        auto induced = g.induced_sequence(walk);
+        edit_dist    = result->cost;
+        induced_len  = static_cast<int>(induced.size());
+        is_path      = g.is_valid_path(walk);
+        sol_result   = {"lagrangian", walk, std::move(induced), edit_dist, is_path};
+      }
     }
 
   } else {
@@ -256,19 +304,25 @@ run(const fs::path& gfa_path,
       << algorithm << ","
       << variant << ",";
   if (edit_dist >= 0) out << edit_dist;    // ub
-  out << ",";                              // lb (vazio)
+  out << ",";
+  if (std::isfinite(lb_val))               // lb: so o Lagrangeano produz
+    out << std::fixed << std::setprecision(6) << lb_val << std::defaultfloat;
   out << ","
       << induced_len << ","
       << (is_path ? 1 : 0) << ","
       << std::fixed << std::setprecision(2) << time_ms
       << std::defaultfloat << ","
       << ","                               // node_limit (vazio)
-      << (edit_dist >= 0 ? "found" : "no_path") << "\n";
+      << (have_lagr_status ? lagr_status_label(lagr_status)
+                           : (edit_dist >= 0 ? "found" : "no_path")) << "\n";
 
   // -- Escrever arquivo .sol (warm start no formato Gurobi) --
   // Requer: solucao valida + walk eh path (PLI tem restricao de
   // caminho simples: cada vertice de G visitado no maximo uma vez).
-  if (!cfg.gurobi_sol_dir.empty() && edit_dist >= 0 && sol_result.is_path) {
+  // O Lagrangeano ja gravou seu proprio .sol (caminho exato) dentro de
+  // solve_lagrangian; nao reconstruir aqui via build_warm_start_arcs.
+  if (algorithm != "lagrangian" &&
+      !cfg.gurobi_sol_dir.empty() && edit_dist >= 0 && sol_result.is_path) {
     fs::path sol_path = fs::path(cfg.gurobi_sol_dir) /
                         (graph_name + "_" + seq_name + "_" + config_name + ".sol");
 

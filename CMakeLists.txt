@@ -34,6 +34,10 @@ add_executable(sgap-heuristic
 )
 target_include_directories(sgap-heuristic PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/brkgaAPI/brkgaAPI
+    # Relaxacao Lagrangeana: subgradiente + Dijkstra + beam de reparo.
+    # Nao usa Gurobi, entao vive aqui (nao no sgap-solver) e fica
+    # disponivel sem BUILD_SOLVER=ON.
+    solvers/lagrangian.cpp
 )
 target_link_libraries(sgap-heuristic PRIVATE sgap-core)
 
@@ -102,8 +106,8 @@ if(BUILD_SOLVER)
     add_executable(sgap-solver
         apps/main-pli.cpp
         solvers/pli.cpp
+        # solvers/lagrangian.cpp  -> movido para sgap-heuristic (sem Gurobi)
         # Descomentar conforme implementar:
-        # solvers/lagrangian.cpp
         # solvers/column_gen.cpp
         # solvers/benders.cpp
     )
