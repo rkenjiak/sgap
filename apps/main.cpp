@@ -243,6 +243,19 @@ run(const fs::path& gfa_path,
 
     auto t0 = std::chrono::steady_clock::now();
     auto result = brkga_alignment(g, query, bp);
+    auto t1 = std::chrono::steady_clock::now();
+    time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+    if (result) {
+      auto induced = g.induced_sequence(result->vertices);
+      edit_dist   = result->cost;
+      induced_len = static_cast<int>(induced.size());
+      is_path     = g.is_valid_path(result->vertices);
+
+      sol_result = {"brkga_" + variant, result->vertices,
+                    std::move(induced), edit_dist, is_path};
+    }
+
   } else if (algorithm == "lagrangian") {
     variant = "lagrangian";
     AlignmentGraph ag(g, query, cfg.costs);
@@ -267,13 +280,6 @@ run(const fs::path& gfa_path,
     time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
     if (result) {
-      auto induced = g.induced_sequence(result->vertices);
-      edit_dist   = result->cost;
-      induced_len = static_cast<int>(induced.size());
-      is_path     = g.is_valid_path(result->vertices);
-
-      sol_result = {"brkga_" + variant, result->vertices,
-                    std::move(induced), edit_dist, is_path};
       lb_val           = result->final_lb;   // LB dual (unico algoritmo que produz)
       lagr_status      = result->status;
       have_lagr_status = true;
