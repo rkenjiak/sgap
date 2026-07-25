@@ -16,7 +16,7 @@
 #include "io/fastq.h"
 #include "io/config.h"
 #include "solvers/pli.h"
-// #include "solvers/lagrangian.h"
+// #include "solvers/lagrangian.h"  // movido para sgap-heuristic (nao usa Gurobi)
 // #include "solvers/column_gen.h"
 // #include "solvers/benders.h"
 
@@ -143,9 +143,7 @@ run(const fs::path& gfa_path,
     auto t1 = std::chrono::steady_clock::now();
     time_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
   }
-  // else if (algorithm == "lagrangian") {
-  //   result = solve_lagrangian(ag, cfg);
-  // }
+  // "lagrangian" agora e resolvido pelo sgap-heuristic (nao usa Gurobi).
   // else if (algorithm == "colgen") {
   //   result = solve_colgen(ag, cfg);
   // }

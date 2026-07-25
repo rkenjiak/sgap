@@ -28,6 +28,10 @@ add_executable(sgap-heuristic
     apps/main.cpp
     heuristics/greedy_degree.cpp
     heuristics/beam_search.cpp
+    # Relaxacao Lagrangeana: subgradiente + Dijkstra + beam de reparo.
+    # Nao usa Gurobi, entao vive aqui (nao no sgap-solver) e fica
+    # disponivel sem BUILD_SOLVER=ON.
+    solvers/lagrangian.cpp
 )
 target_link_libraries(sgap-heuristic PRIVATE sgap-core)
 
@@ -96,8 +100,8 @@ if(BUILD_SOLVER)
     add_executable(sgap-solver
         apps/main-pli.cpp
         solvers/pli.cpp
+        # solvers/lagrangian.cpp  -> movido para sgap-heuristic (sem Gurobi)
         # Descomentar conforme implementar:
-        # solvers/lagrangian.cpp
         # solvers/column_gen.cpp
         # solvers/benders.cpp
     )

@@ -152,8 +152,8 @@
   <ItemGroup>
     <ClCompile Include="apps\main-pli.cpp" />
     <ClCompile Include="solvers\pli.cpp" />
+    <!-- solvers\lagrangian.cpp movido para sgap-heuristic (nao usa Gurobi) -->
     <!-- Descomentar conforme implementar novos solvers:
-    <ClCompile Include="solvers\lagrangian.cpp" />
     <ClCompile Include="solvers\column_gen.cpp" />
     <ClCompile Include="solvers\benders.cpp" />
     -->
@@ -163,8 +163,8 @@
   <ItemGroup>
     <ClInclude Include="solvers\solver_interface.h" />
     <ClInclude Include="solvers\pli.h" />
+    <!-- solvers\lagrangian.h movido para sgap-heuristic -->
     <!-- Descomentar conforme implementar novos solvers:
-    <ClInclude Include="solvers\lagrangian.h" />
     <ClInclude Include="solvers\column_gen.h" />
     <ClInclude Include="solvers\benders.h" />
     -->
