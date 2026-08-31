@@ -133,9 +133,10 @@ run(const fs::path& gfa_path,
   int    induced_len = 0;
   bool   is_path = false;
   double time_ms = 0.0;
-  double lb_val  = std::nan("");   // preenchido apenas pelo Lagrangeano
+  double lb_val  = std::nan("");   // preenchido pelo Lagrangeano e pelo jain
   int    lagr_status = -1;         // status bruto do Lagrangeano
   bool   have_lagr_status = false; // true => usa lagr_status_label no CSV
+  bool   report_ub = true;         // false => custo nao eh UB valido (relaxacao)
 
   if (algorithm == "jain") {
     variant = cfg.jain_method;
@@ -155,6 +156,12 @@ run(const fs::path& gfa_path,
       edit_dist   = result->cost;
       induced_len = static_cast<int>(induced.size());
       is_path     = g.is_valid_path(result->vertices);
+
+      // O Jain resolve a relaxacao do problema (walk, sem a restricao de
+      // caminho simples): o custo eh sempre um LB. So vira UB quando o
+      // walk encontrado ja eh um caminho simples, i.e., solucao viavel.
+      lb_val     = static_cast<double>(result->cost);
+      report_ub  = is_path;
 
       sol_result = {"jain_" + variant, result->vertices,
                     std::move(induced), edit_dist, is_path};
@@ -299,9 +306,11 @@ run(const fs::path& gfa_path,
   }
 
   // -- Escrever linha CSV --
-  // edit_dist eh um UB (heuristica nunca produz LB). Vazio quando o
-  // algoritmo falhou em encontrar caminho. lb e node_limit ficam
-  // sempre vazios para manter o schema unificado com o sgap-solver.
+  // Para as heuristicas edit_dist eh um UB, vazio quando o algoritmo
+  // falhou em encontrar caminho. O jain resolve a relaxacao (walk):
+  // seu custo vai para lb e so aparece em ub se o walk for caminho
+  // simples. node_limit fica sempre vazio para manter o schema
+  // unificado com o sgap-solver.
   out << graph_name << ","
       << seq_name << ","
       << g.vertex_count() << ","
@@ -309,9 +318,9 @@ run(const fs::path& gfa_path,
       << query.size() << ","
       << algorithm << ","
       << variant << ",";
-  if (edit_dist >= 0) out << edit_dist;    // ub
+  if (edit_dist >= 0 && report_ub) out << edit_dist;   // ub (so se viavel)
   out << ",";
-  if (std::isfinite(lb_val))               // lb: so o Lagrangeano produz
+  if (std::isfinite(lb_val))               // lb: Lagrangeano e jain (relaxacao)
     out << std::fixed << std::setprecision(6) << lb_val << std::defaultfloat;
   out << ","
       << induced_len << ","
