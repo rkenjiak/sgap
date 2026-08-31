@@ -10,7 +10,7 @@ namespace seq {
 // Decoder vertex-priority (modo basico / "vp") para BRKGA aplicado ao SGAP.
 //
 // Cromossomo = vector<double> de tamanho |V|, cada chave (allele) em [0,1):
-//   - start  = argmax_v k[v]
+//   - start  = argmin_v k[v]
 //   - de u, escolhe o vizinho nao-visitado de menor k[v]
 //   - para quando nao ha vizinho nao-visitado OU quando o caminho atinge
 //     |query| vertices (induced_sequence emite 1 simbolo por vertice, logo

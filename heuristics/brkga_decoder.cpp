@@ -24,11 +24,11 @@ SGAPDecoder::build_path(const std::vector<double>& key, int* cost_out) const
     return path;
   }
 
-  // start = argmax_v k[v]
+  // start = argmin_v k[v] (menor chave = melhor, como na extensao)
   VertexId start = 0;
-  double   best_start = -std::numeric_limits<double>::infinity();
+  double   best_start = std::numeric_limits<double>::infinity();
   for (std::size_t v = 0; v < n; ++v) {
-    if (key[v] > best_start) {
+    if (key[v] < best_start) {
       best_start = key[v];
       start = static_cast<VertexId>(v);
     }
